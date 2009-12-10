@@ -162,10 +162,19 @@ class Facebooker::UserTest < Test::Unit::TestCase
     expect_http_posts_with_responses(example_profile_publish_to_get_xml)
     @user.publish_to(@other_user, :message => 'i love you man')
   end
+
   def test_publish_to_converts_attachment_to_json
     @user = Facebooker::User.new(548871286, @session)
     @user.session.expects(:post).with("facebook.stream.publish",has_entry(:attachment=>instance_of(String)),false)
     @user.publish_to(@other_user, :message => 'i love you man',:attachment=>{:a=>"b"})
+  end
+
+  def test_publish_to_converts_attachment_from_attachment_objecect
+    @user = Facebooker::User.new(548871286, @session)
+    @user.session.expects(:post).with("facebook.stream.publish",has_entry(:attachment=>instance_of(String)),false)
+    attachment = Facebooker::Attachment.new
+    attachment.name = "My name"
+    @user.publish_to(@other_user, :message => 'i love you man',:attachment=>attachment)
   end
 
   def test_comment_on
@@ -300,7 +309,7 @@ class Facebooker::UserTest < Test::Unit::TestCase
          <src>http://ip002.facebook.com/v11/135/18/8055/s1240077_30043524_2020.jpg</src>
          <src_big>http://ip002.facebook.com/v11/135/18/8055/n1240077_30043524_2020.jpg</src_big>
          <src_small>http://ip002.facebook.com/v11/135/18/8055/t1240077_30043524_2020.jpg</src_small>
-         <link>http://www.facebook.com/photo.php?pid=30043524&id=8055</link>
+         <link>http://www.facebook.com/photo.php?pid=30043524&amp;id=8055</link>
          <caption>From The Deathmatch (Trailer) (1999)</caption>
          <created>1132553361</created>
        </photo>
@@ -311,7 +320,7 @@ class Facebooker::UserTest < Test::Unit::TestCase
          <src>http://ip002.facebook.com/v11/135/18/8055/s1240077_30043525_2184.jpg</src>
          <src_big>http://ip002.facebook.com/v11/135/18/8055/n1240077_30043525_2184.jpg</src_big>
          <src_small>http://ip002.facebook.com/v11/135/18/8055/t1240077_30043525_2184.jpg</src_small>
-         <link>http://www.facebook.com/photo.php?pid=30043525&id=8055</link>
+         <link>http://www.facebook.com/photo.php?pid=30043525&amp;id=8055</link>
          <caption>Mexico City, back cover of the CYHS Student Underground 1999.</caption>
          <created>1132553362</created>
        </photo>
