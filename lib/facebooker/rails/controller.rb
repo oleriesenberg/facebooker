@@ -121,30 +121,60 @@ module Facebooker
         cookies.delete Facebooker.api_key
       end
 
-      def fb_cookie_prefix
-        Facebooker.api_key+"_"
+      def fb_cookie_value
+        # facebook wraps the cookie string in quotes, which we have to eliminate
+        (cookies[fb_cookie_name] || "").gsub(/\"/, "")
       end
-
-      def fb_cookie_names
-        fb_cookie_names = cookies.keys.select{|k| k && k.starts_with?(fb_cookie_prefix)}
+      
+      def fb_cookie_name
+        "fbs_#{Facebooker.api_key}"
       end
-
+      
       def secure_with_cookies!
-          parsed = {}
+        # get the cookie
+        raw_cookie_string = fb_cookie_value
+        #returning raw_string if the cookie isn't set
+        return unless raw_cookie_string
+        
+        # since we no longer get individual cookies, we have to separate out the components ourselves
+        parsed = {}
+        
+        # now generate a list of individual parameters as well as the string to use to verify the signature
+        # the string is the cookie value minus the sig parameter
+        auth_string = raw_cookie_string.split("&").collect { |parameter| 
+          # parameter is, e.g., expires=1260910800
+          key_and_value = parameter.split("=")
+          # save it to the hash
+          parsed[key_and_value[0]] = key_and_value[1]
+          
+          # add it back to the string for sig verification, as long as it's not the expected sig value itself
+          key_and_value[0] =~ /^sig=/ ? "" : parameter
+        }.join("&") # preserving the order of the string
 
-          fb_cookie_names.each { |key| parsed[key[fb_cookie_prefix.size,key.size]] = cookies[key] }
+        # use the hash to verify all components are present, returning gracefully if any are missing or invalid
+        return unless parsed["sig"] && parsed['session_key'] && parsed['uid'] && parsed['expires'] && parsed['secret'] 
+        return unless Time.at(parsed['expires'].to_s.to_f) > Time.now || (parsed['expires'] == "0")          
 
-          #returning gracefully if the cookies aren't set or have expired
-          return unless parsed['session_key'] && parsed['user'] && parsed['expires'] && parsed['ss'] 
-          return unless (Time.at(parsed['expires'].to_s.to_f) > Time.now) || (parsed['expires'] == "0")      
-          #if we have the unexpired cookies, we'll throw an exception if the sig doesn't verify
-          verify_signature(parsed,cookies[Facebooker.api_key], true)
-
-          @facebook_session = new_facebook_session
-          @facebook_session.secure_with!(parsed['session_key'],parsed['user'],parsed['expires'],parsed['ss'])
-          @facebook_session
-      end
+        # if we have the unexpired cookies, we'll throw an exception if the sig doesn't verify
+        verify_signature_from_cookies(auth_string, parsed["sig"])
+        
+        @facebook_session = new_facebook_session
+        @facebook_session.secure_with!(parsed['session_key'],parsed['uid'],parsed['expires'],parsed['secret'])
+        @facebook_session
+      end 
     
+      def verify_signature_from_cookies(auth_string,expected_signature)
+        # Verify signatures from the new FB Connect library
+        # Don't verify the signature if rack has already done so.
+        # This doesn't change with the new FB Connect library
+        unless ::Rails.version >= "2.3" and ActionController::Dispatcher.middleware.include? Rack::Facebook
+          actual_sig = Digest::MD5.hexdigest([auth_string, Facebooker::Session.secret_key].join)
+          raise Facebooker::Session::IncorrectSignature if actual_sig != expected_signature
+        end
+        # don't have to worry about the time exception since time is not passed with the new connect signature
+        true
+      end
+      
       def secure_with_token!
         if params['auth_token']
           @facebook_session = new_facebook_session

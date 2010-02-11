@@ -320,7 +320,30 @@ class Facebooker::UserTest < Test::Unit::TestCase
     result = @user.rsvp_event(1000, 'attending')
     assert result
   end
+  
+  def test_can_set_dashboard_count
+    @session.expects(:post).with('facebook.dashboard.setCount', {:uid => @user.uid, :count => 12})
+    @user.dashboard_count = 12
+  end
 
+  def test_can_increment_dashboard_count
+    @session.expects(:post).with('facebook.dashboard.incrementCount', {:uid => @user.uid})
+    @user.dashboard_increment_count
+  end
+
+  def test_can_decrement_dashboard_count
+    @session.expects(:post).with('facebook.dashboard.decrementCount', {:uid => @user.uid})
+    @user.dashboard_decrement_count
+  end
+
+  def test_can_get_dashboard_count
+    @session.expects(:post).with('facebook.dashboard.getCount', {:uid => @user.uid}).returns(12)
+    assert_equal 12, @user.dashboard_count
+
+    expect_http_posts_with_responses(dashboard_get_count_xml)
+    assert_equal 12, @user.dashboard_count
+  end
+  
   private
   def example_profile_photos_get_xml
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -445,5 +468,12 @@ class Facebooker::UserTest < Test::Unit::TestCase
           xsi:schemaLocation="http://api.facebook.com/1.0/ http://api.facebook.com/1.0/facebook.xsd">1
       </events_rsvp_response>
     E
+  end
+  
+  def dashboard_get_count_xml
+    <<-XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <dashboard_getCount_response xmlns="http://api.facebook.com/1.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://api.facebook.com/1.0/ http://api.facebook.com/1.0/facebook.xsd">12</dashboard_getCount_response>
+    XML
   end
 end

@@ -20,38 +20,32 @@ module Facebooker
         # and Rails' Hash#to_json always quotes strings so there is no way to indicate when the value should be a javascript function.
         # For this reason :app_settings needs to be a string that is valid JSON (including the {}'s).
         #
-        def init_fb_connect(*required_features,&proc)
+        def init_fb_connect(*fb_options,&proc)
           additions = ""
           if block_given?
             additions = capture(&proc)
           end
-
+          
           # Yes, app_settings is set to a string of an empty JSON element. That's intentional.
           options = {:js => :prototype, :app_settings => '{}'}
 
-          if required_features.last.is_a?(Hash)
-            options.merge!(required_features.pop.symbolize_keys)
+          if fb_options.last.is_a?(Hash)
+            options.merge!(fb_options.pop.symbolize_keys)
           end
-
-          if request.ssl?
-            init_string = "FB.init('#{Facebooker.api_key}','/xd_receiver_ssl.html', #{options[:app_settings]});"
-          else
-            init_string = "FB.init('#{Facebooker.api_key}','/xd_receiver.html', #{options[:app_settings]});"
-          end
-          unless required_features.blank?
-             init_string = <<-FBML
+          
+         init_string = <<-FBML
+            <div id="fb-root"></div>
+           	<script src="http://static.ak.fbcdn.net/connect/en_US/core.#{RAILS_ENV == "development" ? "debug." : ""}js"></script>
+            <script>
              #{case options[:js]
                when :jquery then "jQuery(document).ready("
                when :dojo then "dojo.addOnLoad("
                else "Element.observe(window,'load',"
                end} function() {
-                FB_RequireFeatures(#{required_features.to_json}, function() {
-                  #{init_string}
-                  #{additions}
-                });
+                 FB.init(#{{:apiKey => Facebooker.api_key}.merge(options).to_json});
               });
+            </script>
               FBML
-          end
 
           # block_is_within_action_view? is rails 2.1.x and has been
           # deprecated.  rails >= 2.2.x uses block_called_from_erb?
@@ -59,9 +53,9 @@ module Facebooker
             :block_is_within_action_view? : :block_called_from_erb?
 
           if block_given? && send(block_tester, proc)
-            versioned_concat(javascript_tag(init_string),proc.binding)
+            versioned_concat(init_string,proc.binding)
           else
-            javascript_tag init_string
+            init_string
           end
         end
 
