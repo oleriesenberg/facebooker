@@ -273,6 +273,13 @@ class TestFacebooker < Test::Unit::TestCase
     assert_equal('The bbc home page', stream[:posts].first['message'])
   end
 
+  def test_can_get_user_stream
+    expect_http_posts_with_responses(example_user_stream_xml)
+    stream = @session.user.stream
+    assert stream[:albums].empty?
+    assert_equal('The bbc home page', stream[:posts].first['message'])
+  end
+
   def test_can_create_album
     expect_http_posts_with_responses(example_new_album_xml)
     assert_equal "My Empty Album", @session.user.create_album(:name => "My Empty Album", :location => "Limboland").name
@@ -283,6 +290,11 @@ class TestFacebooker < Test::Unit::TestCase
     mock_http.should_receive(:post_multipart_form).and_return(example_upload_photo_xml).once.ordered(:posts)
     f = Net::HTTP::MultipartPostFile.new("image.jpg", "image/jpeg", "RAW DATA")
     assert_equal "Under the sunset", @session.user.upload_photo(f).caption
+  end
+
+  def test_can_upload_native_strings
+    expect_http_posts_with_responses(example_upload_native_string_xml)
+    assert_equal "1", @session.upload_native_strings([:text => "Hello!", :description => "A common salutation."])
   end
 
   def test_can_get_photo_tags
@@ -391,7 +403,10 @@ class TestFacebooker < Test::Unit::TestCase
     assert_equal false, @session.post('facebook.auth.revokeAuthorization', :uid => 123)
   end
   
-  
+  def test_revoke_extended_permission
+    expect_http_posts_with_responses(example_revoke_extended_permission)
+    assert_equal true, @session.post('facebook.auth.revokeExtendedPermission', {:perm => 'email', :uid => 123}, false)
+  end
   
   def test_remove_comment_true
     expect_http_posts_with_responses(example_remove_comment_true)
@@ -403,7 +418,14 @@ class TestFacebooker < Test::Unit::TestCase
     assert_equal false, @session.remove_comment('pete_comments',123)
   end
   
-  
+  # We can have lists in not list item, see ewample_with_list_in_none_list_item_xml : there is comment_list in comments node
+  def test_parser_with_list_item_in_not_list_item
+    expect_http_posts_with_responses(ewample_with_list_in_none_list_item_xml)
+    response = @session.fql_query('Lets be frank. We are not testing the query here')
+    assert_equal 3, response.first["comments"]['comment_list'].size
+    assert_equal "ahahhahaha\n    i don't know the original one, but this is awesome (without waiting for it)", response.first["comments"]['comment_list'].first['text']
+  end
+
   
   private
   def populate_user_info
@@ -1154,6 +1176,13 @@ class TestFacebooker < Test::Unit::TestCase
   </video_upload_response>
     XML
   end
+
+  def example_upload_native_string_xml
+    <<-XML
+    <?xml version="1.0" encoding="UTF-8"?>
+    <intl_uploadNativeStrings_response xmlns="http://api.facebook.com/1.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://api.facebook.com/1.0/ http://api.facebook.com/1.0/facebook.xsd">1</intl_uploadNativeStrings_response>
+    XML
+  end
   
   def example_revoke_authorization_true
     "1"
@@ -1163,7 +1192,13 @@ class TestFacebooker < Test::Unit::TestCase
     "0"
   end
   
-  
+  def example_revoke_extended_permission
+    <<-XML
+    <?xml version="1.0" encoding="UTF-8"?>
+    <auth_revokeExtendedPermission_response xmlns="http://api.facebook.com/1.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://api.facebook.com/1.0/ http://api.facebook.com/1.0/facebook.xsd">1</auth_revokeExtendedPermission_response>
+    XML
+  end
+
   def example_remove_comment_true
     "1"
   end
@@ -1171,5 +1206,58 @@ class TestFacebooker < Test::Unit::TestCase
   def example_remove_comment_false
     "0"
   end
+  
+  def ewample_with_list_in_none_list_item_xml
+    <<-XML
+    <?xml version="1.0" encoding="UTF-8"?>
+    <fql_query_response xmlns="http://api.facebook.com/1.0/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" list="true">
+      <stream_post>
+        <post_id>12345678_901234</post_id>
+        <actor_id>12345</actor_id>
+        <comments>
+          <can_remove>1</can_remove>
+          <can_post>1</can_post>
+          <count>3</count>
+          <comment_list list="true">
+            <comment>
+              <fromid>6667785</fromid>
+              <time>2223332</time>
+              <text>ahahhahaha
+    i don't know the original one, but this is awesome (without waiting for it)</text>
+              <id>12345678_901234_23456</id>
+            </comment>
+            <comment>
+              <fromid>6667785</fromid>
+              <time>1268732285</time>
+              <text>héhé :)
+    Have you listen their Mickeal Jackson's cover ?</text>
+              <id>785637999_368045444730_12404854</id>
+            </comment>
+            <comment>
+              <fromid>1345267</fromid>
+              <time>1268733276</time>
+              <text>not yet!
+    unfortunately i'm at work so i can't go through all of them..
+    but yes, i saw it
+    brilliant!</text>
+              <id>12345678_901234_234567</id>
+            </comment>
+          </comment_list>
+        </comments>
+        <likes>
+          <href>http://www.facebook.com/social_graph.php?node_id=23546&amp;class=LikeManager</href>
+          <count>1</count>
+          <sample list="true"/>
+          <friends list="true">
+            <uid>234567</uid>
+          </friends>
+          <user_likes>0</user_likes>
+          <can_like>1</can_like>
+        </likes>
+      </stream_post>
+    </fql_query_response>
+    XML
+  end
+  
   
 end

@@ -9,7 +9,7 @@ module Facebooker
     include Model
     class Status
       include Model
-      attr_accessor :message, :time, :status_id
+      attr_accessor :uid, :message, :time, :status_id, :source
     end
     FIELDS = [:status, :political, :pic_small, :name, :quotes, :is_app_user, :tv, :profile_update_time, :meeting_sex, :hs_info, :timezone, :relationship_status, :hometown_location, :about_me, :wall_count, :significant_other_id, :pic_big, :music, :work_history, :sex, :religion, :notes_count, :activities, :pic_square, :movies, :has_added_app, :education_history, :birthday, :birthday_date, :first_name, :meeting_for, :last_name, :interests, :current_location, :pic, :books, :affiliations, :locale, :profile_url, :proxied_email, :email_hashes, :allowed_restrictions, :pic_with_logo, :pic_big_with_logo, :pic_small_with_logo, :pic_square_with_logo, :online_presence, :verified, :profile_blurb, :username, :website, :is_blocked, :family, :email]
     STANDARD_FIELDS = [:uid, :first_name, :last_name, :name, :timezone, :birthday, :sex, :affiliations, :locale, :profile_url, :proxied_email, :email]
@@ -297,6 +297,17 @@ module Facebooker
       end
     end
 
+    ###
+    # Retrieve user's facebook stream
+    # See http://wiki.developers.facebook.com/index.php/Stream.get for options
+    #
+
+    def stream(options = {})
+      @stream = session.post('facebook.stream.get', prepare_get_stream_options(options)) do |response|
+        response
+      end
+    end
+
     def create_album(params)
       @album = session.post('facebook.photos.createAlbum', params) {|response| Album.from_hash(response)}
     end
@@ -464,6 +475,12 @@ module Facebooker
     # Convenience method to check multiple permissions at once
     def has_permissions?(ext_perms)
       ext_perms.all?{|p| has_permission?(p)}
+    end
+
+    ##
+    ## Revoke any extended permission given by a user
+    def revoke_permission(ext_perm)
+      session.post('facebook.auth.revokeExtendedPermission', { :perm => ext_perm, :uid => uid }, false)
     end
 
     ##
@@ -717,6 +734,18 @@ module Facebooker
     def merge_aid(aid, uid)
       (uid << 32) + (aid & 0xFFFFFFFF)
     end
+
+    def prepare_get_stream_options(options)
+        opts = {}
+
+        opts[:viewer_id] = self.id
+        opts[:source_ids] = options[:source_ids] if options[:source_ids]
+        opts[:start_time] = options[:start_time].to_i if options[:start_time]
+        opts[:end_time] = options[:end_time].to_i if options[:end_time]
+        opts[:limit] = options[:limit] if options[:limit].is_a?(Integer)
+        opts[:metadata] = Facebooker.json_encode(options[:metadata]) if options[:metadata]
+        opts
+      end
 
   end
 end

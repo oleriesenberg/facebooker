@@ -84,7 +84,12 @@ module Facebooker
       if element.children.size == 1 && element.children.first.text?
         element.content.strip
       else
-        hashinate(element)
+        # We can have lists in not list item
+        if element['list'] == 'true'
+          element.children.reject{|c| c.text? }.map { |subchild| hash_or_value_for(subchild)}
+        else
+          hashinate(element)
+        end
       end
     end
 
@@ -162,6 +167,12 @@ module Facebooker
   class RevokeAuthorization < Parser#:nodoc:
     def self.process(data)
       booleanize(data)
+    end
+  end
+
+  class RevokeExtendedPermission < Parser#:nodoc:
+    def self.process(data)
+      booleanize(element('auth_revokeExtendedPermission_response', data).content.strip)
     end
   end
 
@@ -294,6 +305,12 @@ module Facebooker
   class PublishUserAction < Parser#:nodoc:
     def self.process(data)
       element('feed_publishUserAction_response', data).children[1].content.strip == "1"
+    end
+  end
+
+  class UploadNativeStrings < Parser#:nodoc:
+    def self.process(data)
+      element('intl_uploadNativeStrings_response', data).content.strip
     end
   end
 
@@ -852,6 +869,7 @@ module Facebooker
   class Parser
     PARSERS = {
       'facebook.auth.revokeAuthorization' => RevokeAuthorization,
+      'facebook.auth.revokeExtendedPermission' => RevokeExtendedPermission,
       'facebook.auth.createToken' => CreateToken,
       'facebook.auth.getSession' => GetSession,
       'facebook.connect.registerUsers' => RegisterUsers,
@@ -945,7 +963,8 @@ module Facebooker
       'facebook.dashboard.multiClearNews' => DashboardMultiClearNews,
       'facebook.dashboard.publishActivity' => DashboardPublishActivity,
       'facebook.dashboard.removeActivity' => DashboardRemoveActivity,
-      'facebook.dashboard.getActivity' => DashboardGetActivity
+      'facebook.dashboard.getActivity' => DashboardGetActivity,
+      'facebook.intl.uploadNativeStrings' => UploadNativeStrings
     }
   end
 end
